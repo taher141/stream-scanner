@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#111018"><title>STREAM SCANNER</title>
+<style>
+:root{color-scheme:dark;--bg:#0c0b11;--panel:#17151f;--line:#302b3d;--purple:#9561ff;--muted:#aaa4b8}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 50% -20%,#30204b 0,transparent 48%),var(--bg);color:#f7f4ff;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100vh}
+main{width:min(920px,94%);margin:40px auto}.brand{text-align:center;margin:30px 0 28px}.logo{display:inline-grid;place-items:center;width:58px;height:58px;border:1px solid #6744a8;border-radius:18px;background:#211833;color:#c6aaff;font-size:27px;font-weight:900}.brand h1{font-size:clamp(25px,6vw,38px);letter-spacing:1px;margin:12px 0 4px}.brand p{color:var(--muted);margin:0}
+.panel{background:linear-gradient(145deg,#1b1824,#131119);border:1px solid var(--line);border-radius:20px;padding:22px;box-shadow:0 18px 55px #0005}
+label{display:block;font-weight:700;margin:0 0 10px}.urlrow{display:flex;gap:9px}.urlrow input{flex:1;min-width:0}input,select{width:100%;background:#0e0d13;border:1px solid #3a3448;border-radius:12px;padding:15px;color:#fff;font-size:16px;outline:none}input:focus,select:focus{border-color:var(--purple)}button{border:0;border-radius:12px;padding:13px 20px;background:var(--purple);color:white;font-weight:800;font-size:15px;cursor:pointer}button:disabled{opacity:.55;cursor:wait}.controls{display:grid;grid-template-columns:1fr auto;gap:12px;margin-top:13px;align-items:end}.hint{color:var(--muted);font-size:13px;margin-top:14px;line-height:1.8}.status{margin:16px 0 0;color:#cbb7ff;min-height:24px}.results{margin-top:20px;display:grid;gap:10px}.result{background:#100f16;border:1px solid var(--line);border-radius:13px;padding:13px;min-width:0}.resulttop{display:flex;gap:10px;justify-content:space-between;align-items:center}.type{font-weight:800;color:#d6c4ff}.meta{font-size:12px;color:var(--muted);margin-top:7px}.link{direction:ltr;text-align:left;overflow-wrap:anywhere;color:#c9b5ff;font-size:13px;margin-top:8px}.actions{display:flex;gap:7px;flex-shrink:0}.actions button{padding:8px 11px;font-size:12px;background:#33264b}.summary{color:var(--muted);font-size:13px;margin:12px 0}.footer{text-align:center;color:#797386;font-size:12px;margin:18px 0 30px}
+@media(max-width:580px){main{margin:22px auto}.panel{padding:16px}.urlrow{flex-direction:column}.urlrow button{width:100%}.controls{grid-template-columns:1fr}.resulttop{align-items:flex-start}.actions{flex-direction:column}}
+</style>
+</head>
+<body><main>
+<header class="brand"><div class="logo">S</div><h1>STREAM SCANNER</h1><p>فاحص روابط البث ومصادر الفيديو العامة</p></header>
+<section class="panel">
+<label for="url">رابط الصفحة أو الفيديو</label>
+<div class="urlrow"><input id="url" type="url" inputmode="url" placeholder="https://example.com/live-page" autocomplete="url"><button id="scan">ابدأ الفحص</button></div>
+<div class="controls"><div><label for="mode">طريقة الفحص</label><select id="mode"><option value="auto">تلقائي — صفحة وروابط مباشرة</option><option value="page">صفحة بث</option><option value="direct">رابط مباشر فقط</option></select></div><button id="export" disabled>تصدير JSON</button></div>
+<div class="hint">يفحص المصادر العامة الظاهرة في الصفحة مثل M3U8 وMPD وMP4 وTS وعناصر الفيديو والمشغلات. لا يتجاوز تسجيل الدخول أو DRM أو أنظمة الحماية.</div>
+<div class="status" id="status" role="status"></div><div id="summary" class="summary"></div><div id="results" class="results"></div>
+</section><div class="footer">STREAM SCANNER · فحص للمصادر العامة فقط</div>
+</main>
+<script>
+const $=id=>document.getElementById(id);let lastData=null;
+function esc(s){return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));}
+$("scan").addEventListener("click",run);$("url").addEventListener("keydown",e=>{if(e.key==="Enter")run()});
+async function run(){
+ const url=$("url").value.trim();if(!url){$("status").textContent="اكتب الرابط أولًا.";return}
+ $("scan").disabled=true;$("status").textContent="جاري فحص الصفحة واستخراج المصادر العامة…";$("results").innerHTML="";$("summary").textContent="";$("export").disabled=true;lastData=null;
+ try{
+  const r=await fetch("/api/scan",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({url,mode:$("mode").value})});
+  const data=await r.json();if(!r.ok)throw new Error(data.error||"فشل الفحص");lastData=data;
+  $("status").textContent="انتهى الفحص."; $("summary").textContent=`حالة الصفحة: ${data.pageStatus} · نوع المحتوى: ${data.pageContentType||"غير محدد"} · عدد النتائج: ${data.count}`;
+  if(!data.results.length)$("results").innerHTML='<div class="result">لم يتم العثور على روابط فيديو عامة ظاهرة في الصفحة.</div>';
+  for(const item of data.results){
+   const el=document.createElement("div");el.className="result";
+   el.innerHTML=`<div class="resulttop"><span class="type">${esc(item.type)}</span><div class="actions"><button class="copy">نسخ الرابط</button></div></div><div class="meta">HTTP: ${esc(item.status)} · ${esc(item.contentType||"نوع المحتوى غير معروف")}</div><div class="link">${esc(item.url)}</div>`;
+   el.querySelector("button").onclick=()=>navigator.clipboard?.writeText(item.url).then(()=>{$("status").textContent="تم نسخ الرابط."}).catch(()=>{$("status").textContent="تعذر النسخ التلقائي؛ اضغط مطولًا على الرابط."});
+   $("results").appendChild(el);
+  }
+  $("export").disabled=false;
+ }catch(e){$("status").textContent="خطأ: "+e.message}
+ finally{$("scan").disabled=false}
+}
+$("export").onclick=()=>{if(!lastData)return;const blob=new Blob([JSON.stringify(lastData,null,2)],{type:"application/json"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="stream-scan-results.json";a.click();URL.revokeObjectURL(a.href)};
+</script></body></html>
